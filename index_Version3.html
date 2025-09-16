@@ -21,279 +21,387 @@
         let app, db, auth, userId;
         const inspectionsCollectionPath = `/artifacts/${appId}/users`;
         let currentInspections = [];
+
+        const form = document.getElementById('inspectionForm');
+        const companyNameInput = document.getElementById('companyName'); // 業者名入力欄
+        const machineNameInput = document.getElementById('machineName');
+        const machineNumberInput = document.getElementById('machineNumber');
+        const inspectionItemsContainer = document.getElementById('inspectionItemsContainer');
+        const inspectionsList = document.getElementById('inspectionsList');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const modal = document.getElementById('modal');
+        const confirmBtn = document.getElementById('confirmBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const modalMessage = document.getElementById('modalMessage');
+
         let isInitialized = false;
         let inspectionToProcess = null;
         let inspectionType = '';
 
-        // 重機タイプごとの点検項目を定義（省略せずそのまま）
-
+        // 重機タイプごとの点検項目を定義
         const inspectionPresets = {
-            // ...（この部分は従来通りそのまま）
-            // 省略
-            // 全presetオブジェクトはそのまま
+            '移動式クレーン・クローラー': [
+                { name: 'エンジン-クランクケース', placeholder: '油量はよいか', required: false },
+                { name: 'エンジン-ラジエータ', placeholder: '水は十分か。フィンの目詰まり、水漏れはないか', required: false },
+                { name: 'エンジン-ファンベルト', placeholder: '張りはよいか。損傷はないか。', required: false },
+                { name: 'エンジン-ゲージ', placeholder: '作動はよいか。損傷はないか。', required: false },
+                { name: 'エンジン-燃料系統', placeholder: '漏れはないか。', required: false },
+                { name: 'エンジン-潤滑油系統', placeholder: '漏れはないか。', required: false },
+                { name: '動力伝達･作業装置-主クラッチまたはトルクコンバータ', placeholder: '作動はよいか。油漏れはないか。', required: false },
+                { name: '動力伝達･作業装置-トランスミッション', placeholder: '作動はよいか。油漏れはないか。', required: false },
+                { name: '動力伝達･作業装置-ブーム起伏装置', placeholder: '作動はよいか', required: false },
+                { name: '動力伝達･作業装置-巻き上げ装置', placeholder: '作動はよいか。ブレーキの効きはよいか。', required: false },
+                { name: '動力伝達･作業装置-旋回装置', placeholder: 'スムーズに動くか。作動はよいか。', required: false },
+                { name: '動力伝達･作業装置-クレーンブーム', placeholder: 'ジョイントピン、ボルトの緩みはないか。', required: false },
+                { name: '動力伝達･作業装置-ワイヤロープ', placeholder: '乱巻き、素線の切断はないか。塗油はよいか。', required: false },
+                { name: '走行装置-ブレーキ', placeholder: '作動はよいか。', required: false },
+                { name: '走行装置-足回り', placeholder: '緩みは適当か。ボルトの緩み、脱落はないか。', required: false },
+                { name: '走行装置-シャーシ・フレーム', placeholder: '給油脂はよいか。', required: false },
+                { name: '安全装置-巻過防止装置または警報装置', placeholder: '作動するか。', required: false },
+                { name: '安全装置-起伏制限装置または警報装置', placeholder: '作動するか。', required: false },
+                { name: '安全装置-過負荷防止装置', placeholder: '指針の動きはよいか。', required: false },
+                { name: '安全装置-ロック装置', placeholder: '作動するか。', required: false },
+                { name: '安全装置-バックストッパー', placeholder: '曲がりはないか。', required: false },
+                { name: '安全装置-ワイヤーロープの外れ止め', placeholder: '効くか。', required: false },
+                { name: 'その他-運転者名札', placeholder: 'あるか。', required: false },
+                { name: 'その他-荷重表示板', placeholder: 'あるか。', required: false },
+                { name: 'その他-作業場所の路盤', placeholder: '安定しているか。', required: false }
+            ],
+            '移動式クレーン・ホイール': [
+                { name: 'エンジン-クランクケース', placeholder: '油量はよいか', required: false },
+                { name: 'エンジン-ラジエータ', placeholder: '水は十分か。フィンの目詰まり、水漏れはないか', required: false },
+                { name: 'エンジン-ファンベルト', placeholder: '張りはよいか。損傷はないか。', required: false },
+                { name: 'エンジン-ゲージ', placeholder: '作動はよいか。損傷はないか。', required: false },
+                { name: 'エンジン-燃料系統', placeholder: '漏れはないか。', required: false },
+                { name: 'エンジン-潤滑油系統', placeholder: '漏れはないか。', required: false },
+                { name: '作業装置-主クラッチ', placeholder: '作動はよいか。油量はよいか。', required: false },
+                { name: '作業装置-ブーム起伏・伸縮装置', placeholder: '作動はよいか', required: false },
+                { name: '作業装置-巻き上げ装置', placeholder: '作動はよいか。ブレーキの効きはよいか。', required: false },
+                { name: '作業装置-旋回装置', placeholder: 'スムーズに動くか', required: false },
+                { name: '作業装置-ブーム', placeholder: '曲がりはないか', required: false },
+                { name: '作業装置-ワイヤロープ', placeholder: '乱巻き、素線の切断はないか。塗油はよいか。', required: false },
+                { name: '作業装置-油圧装置', placeholder: '作動はよいか。油漏れはないか。', required: false },
+                { name: '走行装置-ブレーキ', placeholder: '作動はよいか。', required: false },
+                { name: '走行装置-ステアリング', placeholder: '舵取りはよいか。ハンドルの作動はよいか。', required: false },
+                { name: '走行装置-トランスミッション', placeholder: '作動はよいか。油漏れはないか。', required: false },
+                { name: '走行装置-タイヤ', placeholder: '摩耗、損傷、ホイルナットの緩みはないか。', required: false },
+                { name: '走行装置-シャーシばね', placeholder: '損傷はないか。', required: false },
+                { name: '安全装置-巻過防止装置または警報装置', placeholder: '作動するか。', required: false },
+                { name: '安全装置-過負荷防止装置', placeholder: '指針の動きはよいか。', required: false },
+                { name: '安全装置-ロック装置', placeholder: '作動するか。', required: false },
+                { name: '安全装置-フックブロックの外れ止め', placeholder: '効くか。', required: false },
+                { name: '保安装置-灯火装置', placeholder: '点灯、点滅、切り換えはよいか。', required: false },
+                { name: '保安装置-警報器', placeholder: '作動はよいか。', required: false },
+                { name: '保安装置-バックミラー', placeholder: '方向はよいか。', required: false },
+                { name: 'その他-運転者名札', placeholder: 'あるか。', required: false },
+                { name: 'その他-ブーム長さ指示装置', placeholder: '作動はよいか。', required: false },
+                { name: 'その他-携行品', placeholder: '消火器、発煙筒、旗、懐中電灯は備え付けているか。', required: false },
+                { name: 'その他-作業場所の路盤', placeholder: '安定しているか。', required: false }
+            ],
+            '車輛系建設機械・クレーン仕様': [
+                { name: 'エンジン-クランクケース', placeholder: '油量はよいか', required: false },
+                { name: 'エンジン-ラジエータ', placeholder: '水は十分か。フィンの目詰まり、水漏れはないか', required: false },
+                { name: 'エンジン-ファンベルト', placeholder: '張りはよいか。損傷はないか。', required: false },
+                { name: 'エンジン-ゲージ', placeholder: '作動はよいか。損傷はないか。', required: false },
+                { name: 'エンジン-燃料系統', placeholder: '漏れはないか。', required: false },
+                { name: 'エンジン-潤滑油系統', placeholder: '漏れはないか。', required: false },
+                { name: '作業装置-主クラッチまたはトルクコンバータ', placeholder: '作動はよいか。油量はよいか。', required: false },
+                { name: '作業装置-トランスミッション', placeholder: '作動はよいか。油量はよいか。', required: false },
+                { name: '作業装置-ブーム起伏装置', placeholder: '作動はよいか。', required: false },
+                { name: '作業装置-旋回装置', placeholder: 'スムーズに動くか。', required: false },
+                { name: '作業装置-油圧装置', placeholder: '油漏れはないか。', required: false },
+                { name: '走行装置-ブレーキ', placeholder: '作動はよいか。', required: false },
+                { name: '走行装置-足回り', placeholder: '履帯の緩みは適当か。シューボルトの緩み、脱落はないか。', required: false },
+                { name: '走行装置-シャーシ・フレーム', placeholder: '給油脂はよいか。', required: false },
+                { name: '安全装置-起伏制限装置または警報装置', placeholder: '作動するか。', required: false },
+                { name: '安全装置-ロック装置', placeholder: '作動するか。', required: false },
+                { name: '安全装置-警報機', placeholder: '作動はよいか。', required: false },
+                { name: '安全装置-過負荷防止装置', placeholder: '指針の動きはよいか', required: false },
+                { name: '安全装置-フックブロックの外れ止め', placeholder: '効くか。', required: false },
+                { name: 'その他-バケット', placeholder: '損傷はないか。', required: false },
+                { name: '設備-運転者名札', placeholder: '取りつけてあるか。', required: false },
+                { name: 'その他-作業場所の路盤', placeholder: '安定しているか。', required: false }
+            ],
+            '高所作業車': [
+                { name: '「特定自主検査」の実施の有無（点検表確認）', placeholder: '確認済みか', required: false },
+                { name: '操作レバー・操作スイッチの作動', placeholder: '作動はよいか', required: false },
+                { name: '作業台・手摺の損傷', placeholder: '損傷はないか', required: false },
+                { name: 'リフト装置の亀裂、変形', placeholder: '亀裂や変形はないか', required: false },
+                { name: 'バッテリーの充電', placeholder: '充電はよいか', required: false },
+                { name: '取扱責任者名の表示', placeholder: '表示はあるか', required: false },
+                { name: '関係者以外立入禁止の措置', placeholder: '措置はよいか', required: false },
+                { name: '作業者の移動、作業範囲', placeholder: '整理されているか', required: false },
+                { name: '夜間の照明', placeholder: '照明が十分か', required: false },
+                { name: '上空にある仮設電線、照明器具', placeholder: '確認したか', required: false },
+            ],
+            'フォークリフト': [
+                { name: 'フォークの損傷', placeholder: '損傷はないか', required: false },
+                { name: 'マストの傾き', placeholder: '傾きはないか', required: false },
+                { name: 'ブレーキの効き', placeholder: '効きはよいか', required: false },
+                { name: 'バックアップアラーム', placeholder: '正常に作動するか', required: false },
+                { name: '車両の外観', placeholder: 'バックレスト・ヘッドガードの損傷はないか', required: false },
+                { name: 'タイヤの空気圧、損傷', placeholder: '摩耗、損傷はないか', required: false },
+                { name: 'チェーンの張り', placeholder: '左右同じか', required: false },
+                { name: 'シリンダ、ホース、その他油漏れ', placeholder: '油漏れはないか', required: false },
+                { name: '前照灯、後照灯、方向指示器', placeholder: '正常に作動するか', required: false }
+            ],
+            '発電機': [
+                { name: '燃料・オイル・冷却水', placeholder: '規定量入っているか。漏れはないか。', required: false },
+                { name: 'バッテリーとセルスターター', placeholder: 'セルスターターの作動はよいか。バッテリー液の量は十分か。', required: false },
+                { name: 'メーター類', placeholder: '作動はよいか。', required: false },
+                { name: '配電盤', placeholder: '損傷・汚損はないか。', required: false },
+                { name: '電線', placeholder: '損傷はないか。', required: false },
+                { name: 'エンジン始動装置', placeholder: '作動はよいか。', required: false },
+                { name: '消火器', placeholder: '設置されているか。', required: false },
+                { name: 'その他', placeholder: '異音、異臭、異常発熱、発煙はないか。', required: false }
+            ]
         };
 
-        // --- ここからwindow.onload内でDOM取得 ---
+        // 重機名に応じて点検項目を動的に生成する
+        const generateInspectionItems = (machineName) => {
+            const preset = inspectionPresets[machineName] || [];
+            inspectionItemsContainer.innerHTML = '';
+            inspectionType = machineName;
+            
+            if (preset.length > 0) {
+                inspectionItemsContainer.innerHTML = `
+                    <h3 class="text-lg font-bold text-gray-800">点検項目</h3>
+                    <p class="text-sm text-gray-500 mb-2">※重機名に合わせて項目が自動で変わります</p>
+                `;
+            } else {
+                 inspectionItemsContainer.innerHTML = `
+                    <p class="text-sm text-gray-500 mb-2">※重機を選択してください</p>
+                `;
+            }
+            
+            preset.forEach((item, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.innerHTML = `
+                    <label for="item-${index}" class="block text-sm font-medium text-gray-700">${item.name}</label>
+                    <input type="text" id="item-${index}" name="item-${index}" placeholder="${item.placeholder}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                `;
+                inspectionItemsContainer.appendChild(itemDiv);
+            });
+        };
+
+        // ドキュメントデータをHTMLとしてレンダリングする関数
+        const renderInspections = (docs) => {
+            currentInspections = docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            inspectionsList.innerHTML = '';
+            if (docs.length === 0) {
+                inspectionsList.innerHTML = '<p class="text-center text-gray-500 mt-4">まだ点検記録がありません。</p>';
+                return;
+            }
+
+            docs.forEach(doc => {
+                const data = doc.data();
+                const inspectionId = doc.id;
+                const inspectionItemHtml = (data.items || []).map(item => `
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm font-semibold">${item.name}:</span>
+                        <span class="text-sm">${item.result || ''}</span>
+                    </div>
+                `).join('');
+
+                const itemHtml = `
+                    <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">${data.machineName}</h3>
+                                <p class="text-sm text-gray-600">重機番号: ${data.machineNumber || 'なし'}</p>
+                                <p class="text-sm text-gray-600">業者名: ${data.companyName}</p>
+                                <p class="text-sm text-gray-600">点検者: ${data.inspectorName}</p>
+                                <p class="text-sm text-gray-600">点検日: ${data.date}</p>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button class="deleteBtn text-red-500 hover:text-red-700 transition duration-300" data-id="${inspectionId}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg mt-2">
+                            <h4 class="font-bold text-gray-700 mb-2">点検項目:</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-gray-700">
+                                ${inspectionItemHtml}
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-700 mt-2">備考: ${data.notes || 'なし'}</p>
+                    </div>
+                `;
+                inspectionsList.innerHTML += itemHtml;
+            });
+
+            // イベントリスナーを再設定
+            document.querySelectorAll('.deleteBtn').forEach(btn => {
+                btn.onclick = (e) => showDeleteModal(e.currentTarget.dataset.id);
+            });
+        };
+
+        const showLoading = (show) => {
+            loadingIndicator.style.display = show ? 'block' : 'none';
+        };
+
+        const showModal = (message, onConfirm) => {
+            modalMessage.textContent = message;
+            modal.classList.remove('hidden');
+            confirmBtn.onclick = onConfirm;
+        };
+
+        const hideModal = () => {
+            modal.classList.add('hidden');
+            inspectionToProcess = null;
+        };
+
+        const showDeleteModal = (id) => {
+            inspectionToProcess = id;
+            showModal('本当にこの点検記録を削除しますか？', deleteInspection);
+        };
+        
+        const deleteInspection = async () => {
+            if (!inspectionToProcess) return;
+            showLoading(true);
+            try {
+                await deleteDoc(doc(db, inspectionsCollectionPath, userId, 'inspections', inspectionToProcess));
+                console.log("Record successfully deleted!");
+            } catch (error) {
+                console.error("Error deleting document: ", error);
+            } finally {
+                hideModal();
+                showLoading(false);
+            }
+        };
+
+        const saveInspection = async (e) => {
+            e.preventDefault();
+            showLoading(true);
+
+            const companyName = companyNameInput.value;
+            const machineName = machineNameInput.value;
+            const machineNumber = machineNumberInput.value; // 重機番号を取得
+            const inspectorName = document.getElementById('inspectorName').value;
+            const date = document.getElementById('date').value;
+            const notes = document.getElementById('notes').value;
+            
+            if (!machineName) {
+                showLoading(false);
+                return;
+            }
+
+            const inspectionItems = [];
+            document.querySelectorAll('#inspectionItemsContainer input').forEach(input => {
+                inspectionItems.push({
+                    name: input.previousElementSibling.textContent,
+                    result: input.value
+                });
+            });
+
+            const newInspection = {
+                companyName,
+                machineName,
+                machineNumber, // 重機番号をデータに追加
+                inspectorName,
+                date,
+                notes,
+                items: inspectionItems,
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                await addDoc(collection(db, inspectionsCollectionPath, userId, 'inspections'), newInspection);
+                form.reset();
+                generateInspectionItems(''); // フォームをリセット後、項目をクリア
+                console.log("Inspection added successfully!");
+            } catch (error) {
+                console.error("Error adding document: ", error);
+            } finally {
+                showLoading(false);
+            }
+        };
+
+        // PDF保存機能
+        const saveAsPdf = async () => {
+            if (currentInspections.length === 0) {
+                showModal('PDFに保存する点検記録がありません。', hideModal);
+                return;
+            }
+
+            showLoading(true);
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const padding = 10;
+            const contentWidth = pageWidth - padding * 2;
+            const contentHeight = pageHeight - padding * 2;
+
+            for (let i = 0; i < currentInspections.length; i++) {
+                const inspection = currentInspections[i];
+                
+                // PDFコンテンツ用の仮の要素を作成
+                const pdfContent = document.createElement('div');
+                pdfContent.style.width = `${contentWidth}mm`;
+                pdfContent.style.padding = `${padding}mm`;
+                pdfContent.style.backgroundColor = '#fff';
+                pdfContent.style.fontFamily = 'sans-serif';
+
+                // ヘッダーとデータを追加
+                let contentHtml = `
+                    <h1 style="font-size: 20px; font-weight: bold; text-align: center; margin-bottom: 20px;">重機点検記録</h1>
+                    <div style="border: 1px solid #ccc; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <h3 style="font-size: 16px; font-weight: bold;">${inspection.machineName}</h3>
+                        <p style="margin-top: 5px;"><strong>重機番号:</strong> ${inspection.machineNumber || 'なし'}</p>
+                        <p><strong>業者名:</strong> ${inspection.companyName || 'N/A'}</p>
+                        <p><strong>点検者:</strong> ${inspection.inspectorName || 'N/A'}</p>
+                        <p><strong>点検日:</strong> ${inspection.date || 'N/A'}</p>
+                        <div style="margin-top: 10px;">
+                            <h4 style="font-weight: bold;">点検項目:</h4>
+                            <ul style="padding-left: 20px; margin-top: 5px;">
+                                ${inspection.items.map(item => `<li>${item.name}: ${item.result || ''}</li>`).join('')}
+                            </ul>
+                        </div>
+                        <p style="margin-top: 10px;"><strong>備考:</strong> ${inspection.notes || 'なし'}</p>
+                    </div>
+                `;
+                pdfContent.innerHTML = contentHtml;
+
+                // DOMに追加してレンダリング
+                document.body.appendChild(pdfContent);
+
+                try {
+                    const canvas = await html2canvas(pdfContent, { scale: 2 });
+                    const imgData = canvas.toDataURL('image/png');
+                    const imgWidth = contentWidth; 
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                    
+                    if (i > 0) {
+                        doc.addPage();
+                    }
+                    doc.addImage(imgData, 'PNG', padding, padding, imgWidth, imgHeight);
+
+                } catch (error) {
+                    console.error("PDF保存中にエラーが発生しました: ", error);
+                    showModal('PDFの保存中にエラーが発生しました。', hideModal);
+                    // エラー発生時は処理を中断
+                    document.body.removeChild(pdfContent);
+                    showLoading(false);
+                    return; 
+                } finally {
+                    // 仮の要素を削除
+                    document.body.removeChild(pdfContent);
+                }
+            }
+            
+            doc.save(`点検記録_${new Date().toISOString().slice(0, 10)}.pdf`);
+            showLoading(false);
+        };
+        
         window.onload = async () => {
             app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
 
-            // DOM取得はここで（body描画後なのでnullにならない）
-            const form = document.getElementById('inspectionForm');
-            const companyNameInput = document.getElementById('companyName');
-            const machineNameInput = document.getElementById('machineName');
-            const machineNumberInput = document.getElementById('machineNumber');
-            const inspectionItemsContainer = document.getElementById('inspectionItemsContainer');
-            const inspectionsList = document.getElementById('inspectionsList');
-            const loadingIndicator = document.getElementById('loadingIndicator');
-            const modal = document.getElementById('modal');
-            const confirmBtn = document.getElementById('confirmBtn');
-            const cancelBtn = document.getElementById('cancelBtn');
-            const modalMessage = document.getElementById('modalMessage');
-
-            // --- 以降の関数はwindow.onload内で定義 ---
-            // 重機名に応じて点検項目を動的に生成する
-            const generateInspectionItems = (machineName) => {
-                const preset = inspectionPresets[machineName] || [];
-                inspectionItemsContainer.innerHTML = '';
-                inspectionType = machineName;
-                
-                if (preset.length > 0) {
-                    inspectionItemsContainer.innerHTML = `
-                        <h3 class="text-lg font-bold text-gray-800">点検項目</h3>
-                        <p class="text-sm text-gray-500 mb-2">※重機名に合わせて項目が自動で変わります</p>
-                    `;
-                } else {
-                    inspectionItemsContainer.innerHTML = `
-                        <p class="text-sm text-gray-500 mb-2">※重機を選択してください</p>
-                    `;
-                }
-                
-                preset.forEach((item, index) => {
-                    const itemDiv = document.createElement('div');
-                    itemDiv.innerHTML = `
-                        <label for="item-${index}" class="block text-sm font-medium text-gray-700">${item.name}</label>
-                        <input type="text" id="item-${index}" name="item-${index}" placeholder="${item.placeholder}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    `;
-                    inspectionItemsContainer.appendChild(itemDiv);
-                });
-            };
-
-            // ドキュメントデータをHTMLとしてレンダリングする関数
-            const renderInspections = (docs) => {
-                currentInspections = docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                inspectionsList.innerHTML = '';
-                if (docs.length === 0) {
-                    inspectionsList.innerHTML = '<p class="text-center text-gray-500 mt-4">まだ点検記録がありません。</p>';
-                    return;
-                }
-
-                docs.forEach(doc => {
-                    const data = doc.data();
-                    const inspectionId = doc.id;
-                    const inspectionItemHtml = (data.items || []).map(item => `
-                        <div class="flex items-center space-x-2">
-                            <span class="text-sm font-semibold">${item.name}:</span>
-                            <span class="text-sm">${item.result || ''}</span>
-                        </div>
-                    `).join('');
-
-                    const itemHtml = `
-                        <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <h3 class="text-xl font-bold text-gray-800">${data.machineName}</h3>
-                                    <p class="text-sm text-gray-600">重機番号: ${data.machineNumber || 'なし'}</p>
-                                    <p class="text-sm text-gray-600">業者名: ${data.companyName}</p>
-                                    <p class="text-sm text-gray-600">点検者: ${data.inspectorName}</p>
-                                    <p class="text-sm text-gray-600">点検日: ${data.date}</p>
-                                </div>
-                                <div class="flex space-x-2">
-                                    <button class="deleteBtn text-red-500 hover:text-red-700 transition duration-300" data-id="${inspectionId}">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="bg-gray-50 p-4 rounded-lg mt-2">
-                                <h4 class="font-bold text-gray-700 mb-2">点検項目:</h4>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-gray-700">
-                                    ${inspectionItemHtml}
-                                </div>
-                            </div>
-                            <p class="text-sm text-gray-700 mt-2">備考: ${data.notes || 'なし'}</p>
-                        </div>
-                    `;
-                    inspectionsList.innerHTML += itemHtml;
-                });
-
-                // イベントリスナーを再設定
-                document.querySelectorAll('.deleteBtn').forEach(btn => {
-                    btn.onclick = (e) => showDeleteModal(e.currentTarget.dataset.id);
-                });
-            };
-
-            const showLoading = (show) => {
-                loadingIndicator.style.display = show ? 'block' : 'none';
-            };
-
-            const showModal = (message, onConfirm) => {
-                modalMessage.textContent = message;
-                modal.classList.remove('hidden');
-                confirmBtn.onclick = onConfirm;
-            };
-
-            const hideModal = () => {
-                modal.classList.add('hidden');
-                inspectionToProcess = null;
-            };
-
-            const showDeleteModal = (id) => {
-                inspectionToProcess = id;
-                showModal('本当にこの点検記録を削除しますか？', deleteInspection);
-            };
-            
-            const deleteInspection = async () => {
-                if (!inspectionToProcess) return;
-                showLoading(true);
-                try {
-                    await deleteDoc(doc(db, inspectionsCollectionPath, userId, 'inspections', inspectionToProcess));
-                    console.log("Record successfully deleted!");
-                } catch (error) {
-                    console.error("Error deleting document: ", error);
-                } finally {
-                    hideModal();
-                    showLoading(false);
-                }
-            };
-
-            const saveInspection = async (e) => {
-                e.preventDefault();
-                showLoading(true);
-
-                const companyName = companyNameInput.value;
-                const machineName = machineNameInput.value;
-                const machineNumber = machineNumberInput.value; // 重機番号を取得
-                const inspectorName = document.getElementById('inspectorName').value;
-                const date = document.getElementById('date').value;
-                const notes = document.getElementById('notes').value;
-                
-                if (!machineName) {
-                    showLoading(false);
-                    return;
-                }
-
-                const inspectionItems = [];
-                document.querySelectorAll('#inspectionItemsContainer input').forEach(input => {
-                    inspectionItems.push({
-                        name: input.previousElementSibling.textContent,
-                        result: input.value
-                    });
-                });
-
-                const newInspection = {
-                    companyName,
-                    machineName,
-                    machineNumber, // 重機番号をデータに追加
-                    inspectorName,
-                    date,
-                    notes,
-                    items: inspectionItems,
-                    createdAt: new Date().toISOString()
-                };
-
-                try {
-                    await addDoc(collection(db, inspectionsCollectionPath, userId, 'inspections'), newInspection);
-                    form.reset();
-                    generateInspectionItems(''); // フォームをリセット後、項目をクリア
-                    console.log("Inspection added successfully!");
-                } catch (error) {
-                    console.error("Error adding document: ", error);
-                } finally {
-                    showLoading(false);
-                }
-            };
-
-            // PDF保存機能（この関数もwindow.onload内でOK）
-            const saveAsPdf = async () => {
-                if (currentInspections.length === 0) {
-                    showModal('PDFに保存する点検記録がありません。', hideModal);
-                    return;
-                }
-
-                showLoading(true);
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF('p', 'mm', 'a4');
-                const pageWidth = doc.internal.pageSize.getWidth();
-                const pageHeight = doc.internal.pageSize.getHeight();
-                const padding = 10;
-                const contentWidth = pageWidth - padding * 2;
-                const contentHeight = pageHeight - padding * 2;
-
-                for (let i = 0; i < currentInspections.length; i++) {
-                    const inspection = currentInspections[i];
-                    
-                    // PDFコンテンツ用の仮の要素を作成
-                    const pdfContent = document.createElement('div');
-                    pdfContent.style.width = `${contentWidth}mm`;
-                    pdfContent.style.padding = `${padding}mm`;
-                    pdfContent.style.backgroundColor = '#fff';
-                    pdfContent.style.fontFamily = 'sans-serif';
-
-                    // ヘッダーとデータを追加
-                    let contentHtml = `
-                        <h1 style="font-size: 20px; font-weight: bold; text-align: center; margin-bottom: 20px;">重機点検記録</h1>
-                        <div style="border: 1px solid #ccc; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-                            <h3 style="font-size: 16px; font-weight: bold;">${inspection.machineName}</h3>
-                            <p style="margin-top: 5px;"><strong>重機番号:</strong> ${inspection.machineNumber || 'なし'}</p>
-                            <p><strong>業者名:</strong> ${inspection.companyName || 'N/A'}</p>
-                            <p><strong>点検者:</strong> ${inspection.inspectorName || 'N/A'}</p>
-                            <p><strong>点検日:</strong> ${inspection.date || 'N/A'}</p>
-                            <div style="margin-top: 10px;">
-                                <h4 style="font-weight: bold;">点検項目:</h4>
-                                <ul style="padding-left: 20px; margin-top: 5px;">
-                                    ${inspection.items.map(item => `<li>${item.name}: ${item.result || ''}</li>`).join('')}
-                                </ul>
-                            </div>
-                            <p style="margin-top: 10px;"><strong>備考:</strong> ${inspection.notes || 'なし'}</p>
-                        </div>
-                    `;
-                    pdfContent.innerHTML = contentHtml;
-
-                    // DOMに追加してレンダリング
-                    document.body.appendChild(pdfContent);
-
-                    try {
-                        const canvas = await html2canvas(pdfContent, { scale: 2 });
-                        const imgData = canvas.toDataURL('image/png');
-                        const imgWidth = contentWidth; 
-                        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                        
-                        if (i > 0) {
-                            doc.addPage();
-                        }
-                        doc.addImage(imgData, 'PNG', padding, padding, imgWidth, imgHeight);
-
-                    } catch (error) {
-                        console.error("PDF保存中にエラーが発生しました: ", error);
-                        showModal('PDFの保存中にエラーが発生しました。', hideModal);
-                        // エラー発生時は処理を中断
-                        document.body.removeChild(pdfContent);
-                        showLoading(false);
-                        return; 
-                    } finally {
-                        // 仮の要素を削除
-                        document.body.removeChild(pdfContent);
-                    }
-                }
-                
-                doc.save(`点検記録_${new Date().toISOString().slice(0, 10)}.pdf`);
-                showLoading(false);
-            };
-
-            // Firebase認証とイベント設定はwindow.onload内でOK
             try {
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
@@ -339,7 +447,90 @@
     </script>
 </head>
 <body class="bg-gray-100 min-h-screen font-sans antialiased text-gray-800">
-    <!-- body部分は従来通り -->
-    <!-- ...省略（フォーム・一覧・モーダルはそのまま）... -->
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <header class="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <h1 class="text-3xl md:text-4xl font-extrabold text-center text-blue-600 mb-2">ログログ<br>重機点検管理システム</h1>
+        </header>
+
+        <!-- メインコンテンツ -->
+        <main class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- 点検記録フォーム -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                <h2 class="text-2xl font-bold mb-4 text-gray-800">新しい点検記録を登録</h2>
+                <form id="inspectionForm" class="space-y-4">
+                    <div>
+                        <label for="companyName" class="block text-sm font-medium text-gray-700">業者名</label>
+                        <input type="text" id="companyName" name="companyName" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="machineName" class="block text-sm font-medium text-gray-700">重機の種類</label>
+                        <select id="machineName" name="machineName" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">重機を選択してください</option>
+                            <option value="移動式クレーン・クローラー">移動式クレーン・クローラー</option>
+                            <option value="移動式クレーン・ホイール">移動式クレーン・ホイール</option>
+                            <option value="車輛系建設機械・クレーン仕様">車輛系建設機械・クレーン仕様</option>
+                            <option value="高所作業車">高所作業車</option>
+                            <option value="フォークリフト">フォークリフト</option>
+                            <option value="発電機">発電機</option>  
+                        </select>
+                    </div>
+                    <div>
+                        <label for="machineNumber" class="block text-sm font-medium text-gray-700">重機番号</label>
+                        <input type="text" id="machineNumber" name="machineNumber" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="inspectorName" class="block text-sm font-medium text-gray-700">点検者名</label>
+                        <input type="text" id="inspectorName" name="inspectorName" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="date" class="block text-sm font-medium text-gray-700">点検日</label>
+                        <input type="date" id="date" name="date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    
+                    <div id="inspectionItemsContainer" class="space-y-2 pt-2">
+                        <!-- 点検項目がここに動的に挿入されます -->
+                    </div>
+                    
+                    <div>
+                        <label for="notes" class="block text-sm font-medium text-gray-700">備考</label>
+                        <textarea id="notes" name="notes" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-xl shadow-md hover:bg-blue-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        記録を保存
+                    </button>
+                </form>
+            </div>
+
+            <!-- 点検記録の一覧 -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                <h2 class="text-2xl font-bold mb-4 text-gray-800 flex justify-between items-center">
+                    <span>点検記録一覧</span>
+                    <button id="savePdfBtn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-xl shadow-md hover:bg-gray-300 transition duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        PDFで保存
+                    </button>
+                </h2>
+                <div id="loadingIndicator" class="flex justify-center items-center py-8" style="display: none;">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+                <div id="inspectionsList" class="space-y-4">
+                    <!-- 点検記録がここに動的に挿入されます -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- カスタムモーダル -->
+    <div id="modal" class="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-50 hidden">
+        <div class="flex items-center justify-center min-h-screen px-4 py-8">
+            <div class="relative bg-white p-6 rounded-xl shadow-lg max-w-sm w-full">
+                <p id="modalMessage" class="text-center font-semibold mb-4 text-gray-800"></p>
+                <div class="flex justify-center space-x-4">
+                    <button id="cancelBtn" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-xl hover:bg-gray-400 transition duration-300">キャンセル</button>
+                    <button id="confirmBtn" class="bg-red-500 text-white font-bold py-2 px-4 rounded-xl hover:bg-red-600 transition duration-300">削除</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
